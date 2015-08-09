@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -83,6 +83,7 @@ namespace Orleans.Runtime
         private static Severity runtimeTraceLevel = Severity.Info;
         private static Severity appTraceLevel = Severity.Info;
         private static FileInfo logOutputFile;
+        private static readonly ConcurrentDictionary<Type, Func<Exception, string>> exceptionDecoders = new ConcurrentDictionary<Type, Func<Exception, string>>();
 
         internal static IPEndPoint MyIPEndPoint { get; set; }
 
@@ -217,6 +218,8 @@ namespace Orleans.Runtime
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         public static void Initialize(ITraceConfiguration config, bool configChange = false)
         {
+            if (config == null) throw new ArgumentNullException("config", "No logger config data provided.");
+
             lock (lockable)
             {
                 if (IsInitialized && !configChange) return; // Already initialized
@@ -405,7 +408,7 @@ namespace Orleans.Runtime
         {
             FileInfo file = GetLogFile(logName);
             string logText;
-            using (var f = new StreamReader(file.FullName))
+            using (var f = new StreamReader(File.OpenRead(file.FullName)))
             {
                 logText = f.ReadToEnd();
             }
@@ -891,6 +894,11 @@ namespace Orleans.Runtime
             return exception == null ? String.Empty : PrintException_Helper(exception, 0, false);
         }
 
+        public static void SetExceptionDecoder(Type exceptionType, Func<Exception, string> decoder)
+        {
+            exceptionDecoders.TryAdd(exceptionType, decoder);
+        }
+
         private static string PrintException_Helper(Exception exception, int level, bool includeStackTrace)
         {
             if (exception == null) return String.Empty;
@@ -937,13 +945,19 @@ namespace Orleans.Runtime
             if (exception == null) return String.Empty;
             string stack = String.Empty;
             if (includeStackTrace && exception.StackTrace != null)
-            {
                 stack = String.Format(Environment.NewLine + exception.StackTrace);
-            }
+            
+            string message = exception.Message;
+            var excType = exception.GetType();
+
+            Func<Exception, string> decoder;
+            if (exceptionDecoders.TryGetValue(excType, out decoder))
+                message = decoder(exception);
+            
             return String.Format(Environment.NewLine + "Exc level {0}: {1}: {2}{3}",
                 level,
                 exception.GetType(),
-                exception.Message,
+                message,
                 stack);
         }
 

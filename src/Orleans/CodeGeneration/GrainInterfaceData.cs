@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.CodeDom;
 using System.Collections.Generic;
 using System.Linq;
@@ -122,6 +122,13 @@ namespace Orleans.CodeGeneration
 
         public static GrainInterfaceData FromGrainClass(Type grainType, Language language)
         {
+            if (!TypeUtils.IsConcreteGrainClass(grainType) &&
+                !TypeUtils.IsSystemTargetClass(grainType))
+            {
+                List<string> violations = new List<string> { String.Format("{0} implements IGrain but is not a concrete Grain Class (Hint: Extend the base Grain or Grain<T> class).", grainType.FullName) };
+                throw new RulesViolationException("Invalid Grain class.", violations);
+            }
+
             var gi = new GrainInterfaceData(language) { Type = grainType };
             gi.DefineClassNames(false);
             return gi;
@@ -131,9 +138,10 @@ namespace Orleans.CodeGeneration
         {
             if (t.IsClass)
                 return false;
-            if (t == typeof (IGrainObserver) || t == typeof (IAddressable))
+            if (t == typeof(IGrainObserver) || t == typeof(IAddressable) || t == typeof(IGrainExtension))
                 return false;
-            if (t == typeof (IGrain))
+            if (t == typeof(IGrain) || t == typeof(IGrainWithGuidKey) || t == typeof(IGrainWithIntegerKey)
+                || t == typeof(IGrainWithGuidCompoundKey) || t == typeof(IGrainWithIntegerCompoundKey))
                 return false;
             if (t == typeof (ISystemTarget))
                 return false;
@@ -141,12 +149,12 @@ namespace Orleans.CodeGeneration
             return typeof (IAddressable).IsAssignableFrom(t);
         }
 
-        public static bool IsGrainReference(Type t)
+        public static bool IsAddressable(Type t)
         {
             return typeof(IAddressable).IsAssignableFrom(t);
         }
         
-        public static MethodInfo[] GetMethods(Type grainType, bool bAllMethods = false)
+        public static MethodInfo[] GetMethods(Type grainType, bool bAllMethods = true)
         {
             var methodInfos = new List<MethodInfo>();
             GetMethodsImpl(grainType, grainType, methodInfos);
@@ -267,7 +275,7 @@ namespace Orleans.CodeGeneration
                     methodInfo.DeclaringType.GetInterfaceMap(i).TargetMethods.Contains(methodInfo)));
         }
 
-        public static Dictionary<int, Type> GetRemoteInterfaces(Type type)
+        public static Dictionary<int, Type> GetRemoteInterfaces(Type type, bool checkIsGrainInterface = true)
         {
             var dict = new Dictionary<int, Type>();
 
@@ -275,7 +283,7 @@ namespace Orleans.CodeGeneration
                 dict.Add(ComputeInterfaceId(type), type);
 
             Type[] interfaces = type.GetInterfaces();
-            foreach (Type interfaceType in interfaces.Where(IsGrainInterface))
+            foreach (Type interfaceType in interfaces.Where(i => !checkIsGrainInterface || IsGrainInterface(i)))
                 dict.Add(ComputeInterfaceId(interfaceType), interfaceType);
 
             return dict;
@@ -302,11 +310,6 @@ namespace Orleans.CodeGeneration
             }
             strMethodId.Append(")");
             return Utils.CalculateIdHash(strMethodId.ToString());
-        }
-
-        public static bool UsesPrimaryKeyExtension(Type grainIfaceType)
-        {
-            return HasAttribute<ExtendedPrimaryKeyAttribute>(grainIfaceType, inherit: false);
         }
 
         public bool IsSystemTarget
@@ -523,7 +526,7 @@ namespace Orleans.CodeGeneration
         /// <param name="methodInfos">Accumulated </param>
         private static void GetMethodsImpl(Type grainType, Type serviceType, List<MethodInfo> methodInfos)
         {
-            Type[] iTypes = GetRemoteInterfaces(serviceType).Values.ToArray();
+            Type[] iTypes = GetRemoteInterfaces(serviceType, false).Values.ToArray();
             IEqualityComparer<MethodInfo> methodComparer = new MethodInfoComparer();
 
             foreach (Type iType in iTypes)
@@ -555,27 +558,6 @@ namespace Orleans.CodeGeneration
             }
         }
 
-        private static int CountAttributes<T>(Type grainIfaceType, bool inherit)
-        {
-            return grainIfaceType.GetCustomAttributes(typeof (T), inherit).Length;
-        }
-
-        private static bool HasAttribute<T>(Type grainIfaceType, bool inherit)
-        {
-            switch (CountAttributes<T>(grainIfaceType, inherit))
-            {
-                case 0:
-                    return false;
-                case 1:
-                    return true;
-                default:
-                    throw new InvalidOperationException(string.Format(
-                        "More than one {0} cannot be specified for grain interface {1}",
-                        typeof (T).Name,
-                        grainIfaceType.Name));
-            }
-        }
-        
         private static int GetTypeCode(Type grainInterfaceOrClass)
         {
             var attrs = grainInterfaceOrClass.GetCustomAttributes(typeof(TypeCodeOverrideAttribute), false);

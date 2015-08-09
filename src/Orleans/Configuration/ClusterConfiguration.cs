@@ -145,10 +145,14 @@ namespace Orleans.Runtime.Configuration
 
         private static string WriteXml(XmlElement element)
         {
-            var text = new StringWriter();
-            var xml = new XmlTextWriter(text);
-            element.WriteTo(xml);
-            return text.ToString();
+            using(var text = new StringWriter())
+            {
+                using(var xml = new XmlTextWriter(text))
+                { 
+                    element.WriteTo(xml);
+                    return text.ToString();
+                }
+            }
         }
 
         private void CalculateOverrides()
@@ -163,6 +167,10 @@ namespace Orleans.Runtime.Configuration
                 else if (Globals.UseAzureSystemStore)
                 {
                     Globals.LivenessType = GlobalConfiguration.LivenessProviderType.AzureTable;
+                }
+                else if (Globals.UseZooKeeperSystemStore)
+                {
+                    Globals.LivenessType = GlobalConfiguration.LivenessProviderType.ZooKeeper;
                 }
                 else
                 {
@@ -184,6 +192,10 @@ namespace Orleans.Runtime.Configuration
                 {
                     Globals.SetReminderServiceType(GlobalConfiguration.ReminderServiceProviderType.AzureTable);
                 }
+                else if (Globals.UseZooKeeperSystemStore)
+                {
+                    Globals.SetReminderServiceType(GlobalConfiguration.ReminderServiceProviderType.Disabled);
+                }
                 else
                 {
                     Globals.SetReminderServiceType(GlobalConfiguration.ReminderServiceProviderType.ReminderTableGrain);
@@ -199,15 +211,6 @@ namespace Orleans.Runtime.Configuration
             }
         }
 
-        /// <summary>
-        /// This method may be called by the silo host or test host to tweak a provider configuration after it has been already loaded.
-        /// Its is optional and should NOT be automaticaly called by the runtime.
-        /// </summary>
-        internal void AdjustConfiguration()
-        {
-            GlobalConfiguration.AdjustConfiguration(Globals.ProviderConfigurations, Globals.DeploymentId);
-        }
-
         private void InitNodeSettingsFromGlobals(NodeConfiguration n)
         {
             if (n.Endpoint.Equals(this.PrimaryNode)) n.IsPrimaryNode = true;
@@ -216,15 +219,10 @@ namespace Orleans.Runtime.Configuration
 
         public void LoadFromFile(string fileName)
         {
-            TextReader input = File.OpenText(fileName);
-            try
+            using (TextReader input = File.OpenText(fileName))
             {
                 Load(input);
                 SourceFile = fileName;
-            }
-            finally
-            {
-                input.Close();
             }
         }
 
@@ -436,6 +434,10 @@ namespace Orleans.Runtime.Configuration
                 if (String.IsNullOrEmpty(addrOrHost))
                 {
                     addrOrHost = Dns.GetHostName();
+
+                    // If for some reason we get "localhost" back. This seems to have happened to somebody.
+                    if (addrOrHost.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+                        return loopback;
                 }
 
                 var candidates = new List<IPAddress>();

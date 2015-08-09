@@ -1,24 +1,29 @@
-//*********************************************************//
-//    Copyright (c) Microsoft. All rights reserved.
-//    
-//    Apache 2.0 License
-//    
-//    You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//    
-//    Unless required by applicable law or agreed to in writing, software 
-//    distributed under the License is distributed on an "AS IS" BASIS, 
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or 
-//    implied. See the License for the specific language governing 
-//    permissions and limitations under the License.
-//
-//*********************************************************
+/*
+Project Orleans Cloud Service SDK ver. 1.0
+ 
+Copyright (c) Microsoft Corporation
+ 
+All rights reserved.
+ 
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+associated documentation files (the ""Software""), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
 
 using System;
 using System.Diagnostics;
 using System.Linq;
-using Microsoft.WindowsAzure;
-//using Microsoft.WindowsAzure.Diagnostics;
 using Microsoft.WindowsAzure.ServiceRuntime;
 
 namespace Orleans.Azure.Samples.Web
@@ -32,35 +37,6 @@ namespace Orleans.Azure.Samples.Web
             // For information on handling configuration changes see the MSDN topic at http://go.microsoft.com/fwlink/?LinkId=166357.
             RoleEnvironment.Changing += RoleEnvironmentChanging;
             
-            #region Setup CloudStorageAccount Configuration Setting Publisher
-
-            // This code sets up a handler to update CloudStorageAccount instances when their corresponding
-            // configuration settings change in the service configuration file.
-            CloudStorageAccount.SetConfigurationSettingPublisher(
-                (string configName, Func<string, bool> configSetter) =>
-                {
-                    // Provide the configSetter with the initial value
-                    configSetter(RoleEnvironment.GetConfigurationSettingValue(configName));
-
-                    RoleEnvironment.Changed += (sender, arg) =>
-                    {
-                        if (arg.Changes.OfType<RoleEnvironmentConfigurationSettingChange>()
-                            .Any((change) => (change.ConfigurationSettingName == configName)))
-                        {
-                            // The corresponding configuration setting has changed, propagate the value
-                            if (!configSetter(RoleEnvironment.GetConfigurationSettingValue(configName)))
-                            {
-                                // In this case, the change to the storage account credentials in the
-                                // service configuration is significant enough that the role needs to be
-                                // recycled in order to use the latest settings. (for example, the 
-                                // endpoint has changed)
-                                RoleEnvironment.RequestRecycle();
-                            }
-                        }
-                    };
-                });
-            #endregion
-
             bool ok = base.OnStart();
 
             Trace.WriteLine("OrleansAzureWeb-OnStart completed with OK=" + ok);

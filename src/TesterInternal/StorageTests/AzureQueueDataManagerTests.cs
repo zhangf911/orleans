@@ -30,6 +30,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Orleans.Runtime;
 using Orleans.Runtime.Configuration;
 using Orleans.AzureUtils;
+using Orleans.TestingHost;
 
 namespace UnitTests.StorageTests
 {
@@ -48,11 +49,21 @@ namespace UnitTests.StorageTests
             logger = TraceLogger.GetLogger("AzureQueueDataManagerTests", TraceLogger.LoggerType.Application);
         }
 
+        [ClassInitialize]
+        public static void ClassInitialize(TestContext testContext)
+        {
+            //Starts the storage emulator if not started already and it exists (i.e. is installed).
+            if(!StorageEmulator.TryStart())
+            {
+                Console.WriteLine("Azure Storage Emulator could not be started.");
+            }
+        }
+
         [TestCleanup]
         public void TestCleanup()
         {
             AzureQueueDataManager manager = GetTableManager(queueName).Result;
-            manager.DeleteQueue().Wait(); 
+            manager.DeleteQueue().Wait();
         }
 
 
@@ -63,7 +74,7 @@ namespace UnitTests.StorageTests
             return manager;
         }
 
-        [TestMethod, TestCategory("Nightly"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
+        [TestMethod, TestCategory("Functional"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
         public async Task AQ_Standalone_1()
         {
             queueName = "Test-1-".ToLower() + Guid.NewGuid();
@@ -97,7 +108,7 @@ namespace UnitTests.StorageTests
             Assert.AreEqual(0, await manager.GetApproximateMessageCount());
         }
 
-        [TestMethod, TestCategory("Nightly"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
+        [TestMethod, TestCategory("Functional"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
         public async Task AQ_Standalone_2()
         {
             queueName = "Test-2-".ToLower() + Guid.NewGuid();
@@ -128,28 +139,8 @@ namespace UnitTests.StorageTests
             Assert.AreEqual(0, await manager.GetApproximateMessageCount());
         }
 
-#if DEBUG || REVISIT
-        [TestMethod, TestCategory("Nightly"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
-        public async Task AQ_Standalone_3_CreateDelete()
-        {
-            queueName = "Test-3-".ToLower() + Guid.NewGuid();
-            AzureQueueDataManager manager = await GetTableManager(queueName);
-            await manager.InitQueueAsync();
-            await manager.DeleteQueue();
-
-            AzureQueueDataManager manager2 = await GetTableManager(queueName);
-            await manager2.InitQueueAsync();
-            await manager2.DeleteQueue();
-
-            AzureQueueDataManager manager3 = await GetTableManager(queueName);
-            await manager3.DeleteQueue();
-            await manager3.DeleteQueue();
-            await manager3.DeleteQueue();
-        }
-#endif
-
-        [TestMethod, TestCategory("Nightly"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
-        public async Task AQ_Standalone_4_Init_MultipleThreads()
+        [TestMethod, TestCategory("Functional"), TestCategory("Azure"), TestCategory("Storage"), TestCategory("AzureQueue")]
+        public async Task AQ_Standalone_3_Init_MultipleThreads()
         {
             queueName = "Test-4-".ToLower() + Guid.NewGuid();
 

@@ -21,9 +21,10 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using Orleans.Concurrency;
 using Orleans.Serialization;
+using System.Runtime.Serialization;
 
 namespace Orleans.Runtime
 {
@@ -33,7 +34,7 @@ namespace Orleans.Runtime
     /// </summary>
     [Serializable]
     [Immutable]
-    public class GuidId : IEquatable<GuidId>, IComparable<GuidId>
+    public sealed class GuidId : IEquatable<GuidId>, IComparable<GuidId>, ISerializable
     {
         private static readonly Lazy<Interner<Guid, GuidId>> guidIdInternCache = new Lazy<Interner<Guid, GuidId>>(
                     () => new Interner<Guid, GuidId>(InternerConstants.SIZE_LARGE, InternerConstants.DefaultCacheCleanupFreq));
@@ -72,7 +73,7 @@ namespace Orleans.Runtime
 
         #region IEquatable<GuidId> Members
 
-        public virtual bool Equals(GuidId other)
+        public bool Equals(GuidId other)
         {
             return other != null && this.Guid.Equals(other.Guid);
         }
@@ -120,5 +121,37 @@ namespace Orleans.Runtime
             Guid guid = stream.ReadGuid();
             return GuidId.GetGuidId(guid);
         }
+
+        #region Operators
+
+        public static bool operator ==(GuidId a, GuidId b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (ReferenceEquals(a, null)) return false;
+            if (ReferenceEquals(b, null)) return false;
+            return a.Guid.Equals(b.Guid);
+        }
+
+        public static bool operator !=(GuidId a, GuidId b)
+        {
+            return !(a == b);
+        }
+
+        #endregion
+
+        #region ISerializable Members
+
+        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue("Guid", Guid, typeof(Guid));
+        }
+
+        // The special constructor is used to deserialize values. 
+        private GuidId(SerializationInfo info, StreamingContext context)
+        {
+            Guid = (Guid) info.GetValue("Guid", typeof(Guid));
+        }
+
+        #endregion
     }
 }

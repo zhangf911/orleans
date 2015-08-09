@@ -39,17 +39,17 @@ namespace Orleans.Streams
     internal class DeploymentBasedQueueBalancer : ISiloStatusListener, IStreamQueueBalancer
     {
         private readonly ISiloStatusOracle siloStatusOracle;
-        private readonly IDelpoymentConfiguration deploymentConfig;
+        private readonly IDeploymentConfiguration deploymentConfig;
         private readonly IStreamQueueMapper streamQueueMapper;
         private readonly List<IStreamQueueBalanceListener> queueBalanceListeners;
         private readonly string mySiloName;
         private readonly List<string> activeSiloNames;
-        private List<string> allSiloNames;
+        private IList<string> allSiloNames;
         private BestFitBalancer<string, QueueId> resourceBalancer;
 
         public DeploymentBasedQueueBalancer(
             ISiloStatusOracle siloStatusOracle,
-            IDelpoymentConfiguration deploymentConfig,
+            IDeploymentConfiguration deploymentConfig,
             IStreamQueueMapper queueMapper)
         {
             if (siloStatusOracle == null)
@@ -113,7 +113,7 @@ namespace Orleans.Streams
             // if no change, don't notify
             if (changed)
             {
-                NotifyListenders().Ignore();
+                NotifyListeners().Ignore();
             }
         }
 
@@ -165,7 +165,7 @@ namespace Orleans.Streams
         /// </summary>
         /// <param name="newSiloNames">new silo names</param>
         /// <returns>bool, true if list of all silo names has changed</returns>
-        private bool UpdateAllSiloNames(List<string> newSiloNames)
+        private bool UpdateAllSiloNames(IList<string> newSiloNames)
         {
             // Has configured silo names changed
             if (allSiloNames.Count != newSiloNames.Count ||
@@ -212,7 +212,7 @@ namespace Orleans.Streams
             return changed;
         }
 
-        private Task NotifyListenders()
+        private Task NotifyListeners()
         {
             List<IStreamQueueBalanceListener> queueBalanceListenersCopy;
             lock (queueBalanceListeners)

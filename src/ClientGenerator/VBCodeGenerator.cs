@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.CodeDom;
 using System.Collections.Generic;
 using System.Reflection;
@@ -175,7 +175,7 @@ End If", pair.Key, pair.Value);
             methodImpl = String.Format(@"
         Public Shared Function DeleteObjectReference(reference As {0}) As System.Threading.Tasks.Task
             Return Global.Orleans.Runtime.GrainReference.DeleteObjectReference(reference)
-        End Sub",
+        End Function",
             grainInterfaceData.TypeName);
             var deleteObjectReferenceMethod = new CodeSnippetTypeMember(methodImpl);
             factoryClass.Members.Add(deleteObjectReferenceMethod);
@@ -383,38 +383,45 @@ Return System.Threading.Tasks.Task.FromResult(CObj(True))
 
             Action<string> add = codeFmt =>
                 factoryClass.Members.Add(new CodeSnippetTypeMember(
-                     String.Format(codeFmt, FixupTypeName(interfaceName), interfaceId)));
+                     String.Format(codeFmt, FixupTypeName(interfaceName))));
 
-            bool hasKeyExt = GrainInterfaceData.UsesPrimaryKeyExtension(iface.Type);
+            bool isGuidCompoundKey = typeof(IGrainWithGuidCompoundKey).IsAssignableFrom(iface.Type);
+            bool isLongCompoundKey = typeof(IGrainWithIntegerCompoundKey).IsAssignableFrom(iface.Type);
 
             bool isGuidKey = typeof(IGrainWithGuidKey).IsAssignableFrom(iface.Type);
             bool isLongKey = typeof(IGrainWithIntegerKey).IsAssignableFrom(iface.Type);
             bool isStringKey = typeof(IGrainWithStringKey).IsAssignableFrom(iface.Type);
             bool isDefaultKey = !(isGuidKey || isStringKey || isLongKey);
 
-            if (isDefaultKey && hasKeyExt)
+            if (isLongCompoundKey)
             {
                 // the programmer has specified [ExtendedPrimaryKey] on the interface.
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey as System.Int64, keyExt as System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), {1}, primaryKey, keyExt))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), primaryKey, keyExt))
                         End Function");
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey as System.Int64, keyExt as System.String, grainClassNamePrefix As System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), {1}, primaryKey, keyExt, grainClassNamePrefix))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), primaryKey, keyExt, grainClassNamePrefix))
                         End Function");
-
+            }
+            else if (isGuidCompoundKey)
+            {
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey As System.Guid, keyExt as System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), {1}, primaryKey, keyExt))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), primaryKey, keyExt))
                         End Function");
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey As System.Guid, keyExt as System.String, grainClassNamePrefix As System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), {1}, primaryKey, keyExt,grainClassNamePrefix))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(GetType({0}), primaryKey, keyExt,grainClassNamePrefix))
                         End Function");
             }
             else
@@ -424,39 +431,45 @@ Return System.Threading.Tasks.Task.FromResult(CObj(True))
                 {
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey as System.Int64) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), {1}, primaryKey))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), primaryKey))
                         End Function");
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey as System.Int64, grainClassNamePrefix As System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), {1}, primaryKey, grainClassNamePrefix))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), primaryKey, grainClassNamePrefix))
                         End Function");
                 }
                 if (isGuidKey || isDefaultKey)
                 {
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey As System.Guid) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), {1}, primaryKey))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), primaryKey))
                         End Function");
                 add(
                     @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey As System.Guid, grainClassNamePrefix As System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), {1}, primaryKey, grainClassNamePrefix))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), primaryKey, grainClassNamePrefix))
                         End Function");
                 }
                 if (isStringKey)
                 {
                     add(
                         @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey As System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), {1}, primaryKey))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), primaryKey))
                         End Function");
                     add(
                         @"
+                        <System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")>
                         Public Shared Function GetGrain(primaryKey As System.String, grainClassNamePrefix As System.String) As {0}
-                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), {1}, primaryKey, grainClassNamePrefix))
+                            Return Cast(Global.Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(GetType({0}), primaryKey, grainClassNamePrefix))
                         End Function");
                 }
             }
@@ -503,17 +516,7 @@ Return System.Threading.Tasks.Task.FromResult(CObj(True))
                 castImplCode,
                 "Public");
 
-            string getSystemTarget = null;
-            if (isFactory && si.IsSystemTarget)
-            {
-                getSystemTarget = string.Format(@"
-            Friend Shared Function GetSystemTarget(grainId As Global.Orleans.Runtime.GrainId, silo As Global.Orleans.Runtime.SiloAddress) As {0}
-                Return Global.Orleans.Runtime.GrainReference.GetSystemTarget(grainId, silo, Cast)
-            End Function",
-                FixupTypeName(si.InterfaceTypeName));
-            }
-
-            var castMethod = new CodeSnippetTypeMember(methodImpl + getSystemTarget);
+            var castMethod = new CodeSnippetTypeMember(methodImpl);
             referenceClass.Members.Add(castMethod);
         }
 
@@ -525,10 +528,9 @@ Return System.Threading.Tasks.Task.FromResult(CObj(True))
             foreach (ParameterInfo paramInfo in parameters)
             {
                 if (paramInfo.ParameterType.GetInterface("Orleans.Runtime.IAddressable") != null && !typeof(GrainReference).IsAssignableFrom(paramInfo.ParameterType))
-                    invokeArguments += string.Format("If(typeof({0}) is Global.Orleans.Grain,{2}.{1}.Cast({0}.AsReference()),{0})",
+                    invokeArguments += string.Format("If(typeof({0}) is Global.Orleans.Grain, {0}.AsReference<{1}>(),{0})",
                         GetParameterName(paramInfo),
-                        GrainInterfaceData.GetFactoryClassForInterface(paramInfo.ParameterType, Language.VisualBasic),
-                        paramInfo.ParameterType.Namespace);
+                        TypeUtils.GetTemplatedName(paramInfo.ParameterType, _ => true, Language.VisualBasic));
                 else
                     invokeArguments += GetParameterName(paramInfo);
 

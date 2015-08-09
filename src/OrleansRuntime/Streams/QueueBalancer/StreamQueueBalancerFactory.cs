@@ -23,15 +23,10 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR TH
 
 using System;
 using Orleans.Runtime;
+using Orleans.Runtime.Configuration;
 
 namespace Orleans.Streams
 {
-    internal enum StreamQueueBalancerType
-    {
-        ConsistentRingBalancer, // Stream queue balancer that uses consistent ring provider for load balancing
-        AzureDeploymentBasedBalancer, // Stream queue balancer that uses azure deployment information and silo status for load balancing.  Requires silo running in azure.
-    }
-
     /// <summary>
     /// Stream queue balancer factory
     /// </summary>
@@ -43,6 +38,7 @@ namespace Orleans.Streams
         /// <param name="balancerType">queue balancer type to create</param>
         /// <param name="strProviderName">name of requesting stream provider</param>
         /// <param name="siloStatusOracle">membership services interface.</param>
+        /// <param name="clusterConfiguration">cluster configuration</param>
         /// <param name="runtime">stream provider runtime environment to run in</param>
         /// <param name="queueMapper">queue mapper of requesting stream provider</param>
         /// <returns>Constructed stream queue balancer</returns>
@@ -50,6 +46,7 @@ namespace Orleans.Streams
             StreamQueueBalancerType balancerType,
             string strProviderName,
             ISiloStatusOracle siloStatusOracle,
+            ClusterConfiguration clusterConfiguration,
             IStreamProviderRuntime runtime,
             IStreamQueueMapper queueMapper)
         {
@@ -60,6 +57,10 @@ namespace Orleans.Streams
             if (siloStatusOracle == null)
             {
                 throw new ArgumentNullException("siloStatusOracle");
+            }
+            if (clusterConfiguration == null)
+            {
+                throw new ArgumentNullException("clusterConfiguration");
             }
             if (runtime == null)
             {
@@ -77,9 +78,15 @@ namespace Orleans.Streams
                     IConsistentRingProviderForGrains ringProvider = runtime.GetConsistentRingProvider(0, 1);
                     return new ConsistentRingQueueBalancer(ringProvider, queueMapper);
                 }
-                case StreamQueueBalancerType.AzureDeploymentBasedBalancer:
+                case StreamQueueBalancerType.AzureDeploymentBalancer:
                 {
-                    IDelpoymentConfiguration deploymentConfiguration = new AzureDelpoymentConfiguration();
+                    TraceLogger logger = TraceLogger.GetLogger(typeof(StreamQueueBalancerFactory).Name, TraceLogger.LoggerType.Runtime);
+                    var wrapper = AssemblyLoader.LoadAndCreateInstance<IDeploymentConfiguration>(Constants.ORLEANS_AZURE_UTILS_DLL, logger);
+                    return new DeploymentBasedQueueBalancer(siloStatusOracle, wrapper, queueMapper);
+                }
+                case StreamQueueBalancerType.StaticClusterDeploymentBalancer:
+                {
+                    IDeploymentConfiguration deploymentConfiguration = new StaticClusterDeploymentConfiguration(clusterConfiguration);
                     return new DeploymentBasedQueueBalancer(siloStatusOracle, deploymentConfiguration, queueMapper);
                 }
                 default:

@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.CodeDom;
@@ -49,9 +49,9 @@ namespace Orleans.Runtime
             if (t.IsNestedPublic || t.IsNestedPrivate)
             {
                 if (t.DeclaringType.IsGenericType)
-                    return GetTemplatedName(GetUntemplatedTypeName(t.DeclaringType.Name), t.DeclaringType, t.GetGenericArguments(), _ => true, language) + "." + GetUntemplatedTypeName(t.Name, language);
+                    return GetTemplatedName(GetUntemplatedTypeName(t.DeclaringType.Name), t.DeclaringType, t.GetGenericArguments(), _ => true, language) + "." + GetUntemplatedTypeName(t.Name);
                 
-                return GetTemplatedName(t.DeclaringType, language: language) + "." + GetUntemplatedTypeName(t.Name, language: language);
+                return GetTemplatedName(t.DeclaringType, language: language) + "." + GetUntemplatedTypeName(t.Name);
             }
 
             if (t.IsGenericType) return GetSimpleTypeName(fullName != null && fullName(t) ? GetFullName(t, language) : GetSimpleNameHandleArray(t, language));
@@ -59,7 +59,7 @@ namespace Orleans.Runtime
             return fullName != null && fullName(t) ? GetFullName(t, language) : GetSimpleNameHandleArray(t, language: language);
         }
 
-        public static string GetUntemplatedTypeName(string typeName, Language language = Language.CSharp)
+        public static string GetUntemplatedTypeName(string typeName)
         {
             int i = typeName.IndexOf('`');
             if (i > 0)
@@ -163,7 +163,18 @@ namespace Orleans.Runtime
 
         public static string GetParameterizedTemplateName(Type t, Func<Type, bool> fullName, bool applyRecursively = false, Language language = Language.CSharp)
         {
-            return t.IsGenericType ? GetParameterizedTemplateName(GetSimpleTypeName(t, fullName), t, applyRecursively, fullName, language) : t.FullName;
+            if (t.IsGenericType)
+            {
+                return GetParameterizedTemplateName(GetSimpleTypeName(t, fullName), t, applyRecursively, fullName, language);
+            }
+            else
+            {
+                if(fullName != null && fullName(t)==true)
+                {
+                    return t.FullName;
+                }
+            }
+            return t.Name;
         }
 
         public static string GetParameterizedTemplateName(string baseName, Type t, bool applyRecursively = false, Func<Type, bool> fullName = null, Language language = Language.CSharp)
@@ -313,7 +324,7 @@ namespace Orleans.Runtime
         public static bool IsSystemTargetClass(Type type)
         {
             Type systemTargetType;
-            if (!TryResolveType("Orleans.Runtime.SystemTarget", out systemTargetType)) return false; 
+            if (!TryResolveType("Orleans.Runtime.SystemTarget", out systemTargetType)) return false;
 
             var systemTargetInterfaceType = typeof(ISystemTarget);
             var systemTargetBaseInterfaceType = typeof(ISystemTargetBase);
@@ -324,8 +335,8 @@ namespace Orleans.Runtime
                 systemTargetBaseInterfaceType = ToReflectionOnlyType(systemTargetBaseInterfaceType);
             }
 
-            if (!systemTargetInterfaceType.IsAssignableFrom(type) || 
-                !systemTargetBaseInterfaceType.IsAssignableFrom(type) || 
+            if (!systemTargetInterfaceType.IsAssignableFrom(type) ||
+                !systemTargetBaseInterfaceType.IsAssignableFrom(type) ||
                 !systemTargetType.IsAssignableFrom(type)) return false;
 
             // exclude generated classes.
@@ -338,7 +349,7 @@ namespace Orleans.Runtime
             if (!IsGrainClass(type)) return false;
             if (!type.IsAbstract) return true;
 
-            complaints = complain ? new [] { string.Format("Grain type {0} is abstract and cannot be instantiated.", type.FullName) } : null;
+            complaints = complain ? new[] { string.Format("Grain type {0} is abstract and cannot be instantiated.", type.FullName) } : null;
             return false;
         }
 
@@ -400,7 +411,7 @@ namespace Orleans.Runtime
 
         public static IEnumerable<Type> GetTypes(Assembly assembly, Func<Type, bool> whereFunc)
         {
-            return assembly.IsDynamic ? null : assembly.GetTypes().Where(type => !type.IsNestedPrivate && whereFunc(type));
+            return assembly.IsDynamic ? Enumerable.Empty<Type>() : assembly.GetTypes().Where(type => !type.IsNestedPrivate && whereFunc(type));
         }
 
         public static IEnumerable<Type> GetTypes(Func<Type, bool> whereFunc)
@@ -411,10 +422,20 @@ namespace Orleans.Runtime
             {
                 // there's no point in evaluating nested private types-- one of them fails to coerce to a reflection-only type anyhow.
                 var types = GetTypes(assembly, whereFunc);
-                if (null != types) 
-                {
-                    result.AddRange(types);
-                }
+                result.AddRange(types);
+            }
+            return result;
+        }
+
+        public static IEnumerable<Type> GetTypes(List<string> assemblies, Func<Type, bool> whereFunc)
+        {
+            var currentAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+            var result = new List<Type>();
+            foreach (var assembly in currentAssemblies.Where(loaded => !loaded.IsDynamic && assemblies.Contains(loaded.Location)))
+            {
+                // there's no point in evaluating nested private types-- one of them fails to coerce to a reflection-only type anyhow.
+                var types = GetTypes(assembly, whereFunc);
+                result.AddRange(types);
             }
             return result;
         }

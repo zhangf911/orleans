@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.CodeDom;
 using System.Collections.Generic;
 using System.Reflection;
@@ -379,39 +379,46 @@ namespace Orleans.CodeGeneration
             RecordReferencedNamespaceAndAssembly(iface.Type);
             var interfaceId = GrainInterfaceData.GetGrainInterfaceId(iface.Type);
             Action<string> add = codeFmt => factoryClass.Members.Add(
-                new CodeSnippetTypeMember(String.Format(codeFmt, iface.InterfaceTypeName, interfaceId)));
+                new CodeSnippetTypeMember(String.Format(codeFmt, iface.InterfaceTypeName)));
 
-            bool hasKeyExt = GrainInterfaceData.UsesPrimaryKeyExtension(iface.Type);
+            bool isGuidCompoundKey = typeof(IGrainWithGuidCompoundKey).IsAssignableFrom(iface.Type);
+            bool isLongCompoundKey = typeof(IGrainWithIntegerCompoundKey).IsAssignableFrom(iface.Type);
             bool isGuidKey = typeof(IGrainWithGuidKey).IsAssignableFrom(iface.Type);
             bool isLongKey = typeof(IGrainWithIntegerKey).IsAssignableFrom(iface.Type);
             bool isStringKey = typeof(IGrainWithStringKey).IsAssignableFrom(iface.Type);
             bool isDefaultKey = !(isGuidKey || isStringKey || isLongKey);
 
-            if (isDefaultKey && hasKeyExt)
+            if (isLongCompoundKey)
             {
                 // the programmer has specified [ExtendedPrimaryKey] on the interface.
                 add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(long primaryKey, string keyExt)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), {1}, primaryKey, keyExt));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), primaryKey, keyExt));
                         }}");
 
                 add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(long primaryKey, string keyExt, string grainClassNamePrefix)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), {1}, primaryKey, keyExt, grainClassNamePrefix));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), primaryKey, keyExt, grainClassNamePrefix));
                         }}");
-
+            }
+            else if (isGuidCompoundKey)
+            {
                 add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(System.Guid primaryKey, string keyExt)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), {1}, primaryKey, keyExt));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), primaryKey, keyExt));
                         }}");
 
                 add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(System.Guid primaryKey, string keyExt, string grainClassNamePrefix)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), {1}, primaryKey, keyExt,grainClassNamePrefix));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeKeyExtendedGrainReferenceInternal(typeof({0}), primaryKey, keyExt, grainClassNamePrefix));
                         }}");
             }
             else
@@ -420,45 +427,51 @@ namespace Orleans.CodeGeneration
                 if (isLongKey || isDefaultKey)
                 {
                     add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(long primaryKey)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), {1}, primaryKey));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), primaryKey));
                         }}");
 
                     add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(long primaryKey, string grainClassNamePrefix)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), {1}, primaryKey, grainClassNamePrefix));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), primaryKey, grainClassNamePrefix));
                         }}");
                 }
 
                 if (isGuidKey || isDefaultKey)
                 {
                     add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(System.Guid primaryKey)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), {1}, primaryKey));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), primaryKey));
                         }}");
 
                     add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(System.Guid primaryKey, string grainClassNamePrefix)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), {1}, primaryKey, grainClassNamePrefix));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), primaryKey, grainClassNamePrefix));
                         }}");
                 }
 
                 if (isStringKey)
                 {
                     add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(System.String primaryKey)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), {1}, primaryKey));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), primaryKey));
                         }}");
 
                     add(@"
+                        [System.Obsolete(""This method has been deprecated. Please use GrainFactory.GetGrain<{0}> instead."")]
                         public static {0} GetGrain(System.String primaryKey, string grainClassNamePrefix)
                         {{
-                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), {1}, primaryKey, grainClassNamePrefix));
+                            return Cast(global::Orleans.CodeGeneration.GrainFactoryBase.MakeGrainReferenceInternal(typeof({0}), primaryKey, grainClassNamePrefix));
                         }}");
                 }
             }
@@ -498,18 +511,7 @@ namespace Orleans.CodeGeneration
                 return {2};
             }}", si.InterfaceTypeName, checkCode, castImplCode, "public");
 
-            string getSystemTarget = null;
-            if (isFactory && si.IsSystemTarget)
-            {
-                getSystemTarget = string.Format(@"
-            internal static {0} GetSystemTarget(global::Orleans.Runtime.GrainId grainId, global::Orleans.Runtime.SiloAddress silo)
-            {{
-                return global::Orleans.Runtime.GrainReference.GetSystemTarget(grainId, silo, Cast);
-            }}",
-                si.InterfaceTypeName);
-            }
-
-            var castMethod = new CodeSnippetTypeMember(methodImpl + getSystemTarget);
+            var castMethod = new CodeSnippetTypeMember(methodImpl);
             referenceClass.Members.Add(castMethod);
         }
 
@@ -521,10 +523,9 @@ namespace Orleans.CodeGeneration
             foreach (var paramInfo in parameters)
             {
                 if (paramInfo.ParameterType.GetInterface("Orleans.Runtime.IAddressable") != null && !typeof(GrainReference).IsAssignableFrom(paramInfo.ParameterType))
-                    invokeArguments += string.Format("{0} is global::Orleans.Grain ? {2}.{1}.Cast({0}.AsReference()) : {0}",
+                    invokeArguments += string.Format("{0} is global::Orleans.Grain ? {0}.AsReference<{1}>() : {0}",
                         GetParameterName(paramInfo),
-                        GrainInterfaceData.GetFactoryClassForInterface(paramInfo.ParameterType, Language.CSharp),
-                        paramInfo.ParameterType.Namespace);
+                        TypeUtils.GetTemplatedName(paramInfo.ParameterType, _ => true, Language.CSharp));
                 else
                     invokeArguments += GetParameterName(paramInfo);
 
@@ -567,26 +568,28 @@ namespace Orleans.CodeGeneration
             if (methodInfo.ReturnType == typeof(void))
             {
                 methodImpl = string.Format(@"
-                base.InvokeOneWayMethod({0}, new object[] {{{1}}} {2});",
-                methodId, invokeArguments, optional);
+                    base.InvokeOneWayMethod({0}, {1} {2});",
+                    methodId, 
+                    invokeArguments.Equals(string.Empty) ? "null" : String.Format("new object[] {{{0}}}", invokeArguments),
+                    optional);
             }
             else
             {
                 if (methodInfo.ReturnType == typeof(Task))
                 {
                     methodImpl = string.Format(@"
-                return base.InvokeMethodAsync<object>({0}, new object[] {{{1}}} {2});",
+                return base.InvokeMethodAsync<object>({0}, {1} {2});",
                         methodId,
-                        invokeArguments,
+                        invokeArguments.Equals(string.Empty) ? "null" : String.Format("new object[] {{{0}}}", invokeArguments),
                         optional);
                 }
                 else
                 {
                     methodImpl = string.Format(@"
-                return base.InvokeMethodAsync<{0}>({1}, new object[] {{{2}}} {3});",
+                return base.InvokeMethodAsync<{0}>({1}, {2} {3});",
                         GetActualMethodReturnType(methodInfo.ReturnType, SerializeFlag.NoSerialize),
                         methodId,
-                        invokeArguments,
+                        invokeArguments.Equals(string.Empty) ? "null" : String.Format("new object[] {{{0}}}", invokeArguments),
                         optional);
                 }
             }

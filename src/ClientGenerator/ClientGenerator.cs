@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
@@ -38,7 +38,7 @@ namespace Orleans.CodeGeneration
 {
     /// <summary>
     /// Generates factory, grain reference, and invoker classes for grain interfaces.
-    /// Generates state object classes for grain inplementation classes.
+    /// Generates state object classes for grain implementation classes.
     /// </summary>
     public class GrainClientGenerator : MarshalByRefObject
     {
@@ -46,8 +46,8 @@ namespace Orleans.CodeGeneration
         internal class CodeGenOptions
         {
             public bool ServerGen = false;
-            public FileInfo InputLib = null;
-            public FileInfo SigningKey = null;
+            public FileInfo InputLib;
+            public FileInfo SigningKey;
 
             public bool LanguageConflict = false;
             public Language? TargetLanguage;
@@ -57,10 +57,10 @@ namespace Orleans.CodeGeneration
             public List<string> Defines = new List<string>();
             public List<string> Imports = new List<string>();
 
-            public string RootNamespace = "";
-            public string FSharpCompilerPath = "";
+            public string RootNamespace;
+            public string FSharpCompilerPath;
 
-            public string CodeGenFile = string.Empty;
+            public string CodeGenFile;
             public string SourcesDir;
             public string WorkingDirectory;
 
@@ -78,7 +78,7 @@ namespace Orleans.CodeGeneration
         [Serializable]
         internal class GrainClientGeneratorFlags
         {
-            internal static bool Verbose = true;
+            internal static bool Verbose = false;
             internal static bool FailOnPathNotFound = false;
         }
 
@@ -86,8 +86,10 @@ namespace Orleans.CodeGeneration
         private static readonly int[] suppressCompilerWarnings =
         {
              162, // CS0162 - Unreachable code detected.
-             219, // CS0219 - The variable 'variable' is assigned but its value is never used.
-             693, // CS0693 - Type parameter 'type parameter' has the same name as the type parameter from outer type 'type'
+             219, // CS0219 - The variable 'V' is assigned but its value is never used.
+             414, // CS0414 - The private field 'F' is assigned but its value is never used.
+             649, // CS0649 - Field 'F' is never assigned to, and will always have its default value.
+             693, // CS0693 - Type parameter 'type parameter' has the same name as the type parameter from outer type 'T'
             1591, // CS1591 - Missing XML comment for publicly visible type or member 'Type_or_Member'
             1998  // CS1998 - This async method lacks 'await' operators and will run synchronously
         };
@@ -121,11 +123,6 @@ namespace Orleans.CodeGeneration
 
                 // Call a method 
                 return generator.CreateGrainClient(options);
-            }
-            catch (Exception ex)
-            {
-                ConsoleText.WriteError("ERROR -- Client code-gen FAILED -- Exception caught -- ", ex);
-                throw;
             }
             finally
             {
@@ -339,17 +336,28 @@ namespace Orleans.CodeGeneration
                     catch (GrainInterfaceData.RulesViolationException rve)
                     {
                         foreach (var v in rve.Violations)
-                            ConsoleText.WriteError(string.Format("Error: {0}", v));
+                            NamespaceGenerator.ReportError(v);
 
                         success = false;
                     }
                 }
 
-                if (options.ServerGen && !type.IsAbstract && (TypeUtils.IsGrainClass(type) || TypeUtils.IsSystemTargetClass(type)))
+                if (options.ServerGen && !type.IsAbstract && (GrainInterfaceData.IsAddressable(type)))
                 {
                     var grainNamespace = RegisterNamespace(inputAssembly, namespaceDictionary, type, options.TargetLanguage.Value);
-                    var grainInterfaceData = GrainInterfaceData.FromGrainClass(type, options.TargetLanguage.Value);
-                    grainNamespace.AddStateClass(grainInterfaceData);
+                    try
+                    {
+                        var grainInterfaceData = GrainInterfaceData.FromGrainClass(type, options.TargetLanguage.Value);
+                        grainNamespace.AddStateClass(grainInterfaceData);
+                    }
+                    catch (GrainInterfaceData.RulesViolationException rve)
+                    {
+                        //Note: I have a separate try/catch here since we are issuing warnings instead of compile error unlike the Grain Interface validations above.
+                        //Question: Should we instead throw compile errors?
+                        //Question: What warning number should we use? Standard C# warning/error numbers are listed here: https://msdn.microsoft.com/en-us/library/ms228296(v=vs.90).aspx                        
+                        foreach (var v in rve.Violations)
+                            NamespaceGenerator.ReportWarning(string.Format("CS0184 : {0}", v));
+                    }
                 }
             }
 
@@ -456,7 +464,10 @@ namespace Orleans.CodeGeneration
             // add referrenced named spaces
             foreach (string referredNamespace in grainNamespace.ReferencedNamespaces)
                 if (referredNamespace != referenceNameSpace.Name)
-                    referenceNameSpace.Imports.Add(new CodeNamespaceImport(referredNamespace));
+                    if (!String.IsNullOrEmpty(referredNamespace))
+                    {
+                        referenceNameSpace.Imports.Add(new CodeNamespaceImport(referredNamespace));
+                    }
 
             if (options.TargetLanguage == Language.VisualBasic && referenceNameSpace.Name.StartsWith(options.RootNamespace))
             {
@@ -610,15 +621,26 @@ namespace Orleans.CodeGeneration
                 //Check compile errors
                 if (results.Errors.Count == 0) return;
 
-                Console.WriteLine("Error: ClientGenerator encountered {0} compilation errors", results.Errors.Count);
-                var errorString = string.Empty;
+                var errorsString = string.Empty;
                 foreach (CompilerError error in results.Errors)
                 {
                     Console.WriteLine(error.ToString());
-                    errorString += error.ErrorText + Environment.NewLine;
+                    errorsString += String.Format("{0} Line {1},{2} - {3} {4} -- {5}",
+                        error.FileName,
+                        error.Line,
+                        error.Column,
+                        error.IsWarning ? "Warning" : "ERROR",
+                        error.ErrorNumber,
+                        error.ErrorText)
+                    + Environment.NewLine;
                 }
+                String errMsg = String.Format(
+                    "Error: ClientGenerator could not compile and generate " + options.TargetLanguage.Value
+                    + " -- encountered " + results.Errors.Count + " compilation warnings/errors."
+                    + Environment.NewLine + "ErrorList = "
+                    + Environment.NewLine + errorsString);
 
-                throw new Exception(String.Format("Could not compile and generate {0}", errorString));
+                throw new Exception(errMsg);
             }
         }
 
@@ -700,9 +722,15 @@ namespace Orleans.CodeGeneration
                         else if (arg.StartsWith("/fsharp:"))
                         {
                             var path = arg.Substring(arg.IndexOf(':') + 1);
-                            options.FSharpCompilerPath = path;
                             if (!string.IsNullOrEmpty(path))
-                                Console.WriteLine("F# compiler path = '{0}' ", options.FSharpCompilerPath);
+                            {
+                                Console.WriteLine("F# compiler path = '{0}' ", path);
+                                options.FSharpCompilerPath = path;
+                            }
+                            else
+                            {
+                                Console.WriteLine("F# compiler path not set.");
+                            }
                         }
                         else if (arg.StartsWith("/rootns:") || arg.StartsWith("/rns:"))
                         {
@@ -761,12 +789,12 @@ namespace Orleans.CodeGeneration
                         else if (arg.StartsWith("/sources:") || arg.StartsWith("/src:"))
                         {
                             // C# sources passed from from project file. separator = ';'
-                            if (GrainClientGeneratorFlags.Verbose)
-                                Console.WriteLine("Orleans-CodeGen - Unpacking source file list arg={0}", arg);
+                            //if (GrainClientGeneratorFlags.Verbose)
+                            //    Console.WriteLine("Orleans-CodeGen - Unpacking source file list arg={0}", arg);
 
                             var sourcesStr = arg.Substring(arg.IndexOf(':') + 1);
-                            if (GrainClientGeneratorFlags.Verbose)
-                                Console.WriteLine("Orleans-CodeGen - Splitting source file list={0}", sourcesStr);
+                            //if (GrainClientGeneratorFlags.Verbose)
+                            //    Console.WriteLine("Orleans-CodeGen - Splitting source file list={0}", sourcesStr);
 
                             string[] sources = sourcesStr.Split(';');
                             foreach (var source in sources)
@@ -785,7 +813,7 @@ namespace Orleans.CodeGeneration
 
                 if (!options.TargetLanguage.HasValue)
                 {
-                    ConsoleText.WriteError("Error: unable to determine source code language to use for code generation.");
+                    NamespaceGenerator.ReportError("Unable to determine source code language to use for code generation.");
                     return 2;
                 }
 
@@ -798,7 +826,7 @@ namespace Orleans.CodeGeneration
 
                 if (string.IsNullOrEmpty(options.CodeGenFile))
                 {
-                    ConsoleText.WriteError(string.Format("Error: no codegen file. Add a file '{0}' to your project",
+                    NamespaceGenerator.ReportError(string.Format("No codegen file. Add a file '{0}' to your project",
                         (options.TargetLanguage == Language.CSharp) ? Path.Combine("Properties", "orleans.codegen.cs") :
                         (options.TargetLanguage == Language.FSharp) ? Path.Combine("GeneratedFiles", "orleans.codegen.fs") 
                                                                     : Path.Combine("GeneratedFiles", "orleans.codegen.vb")));
@@ -845,7 +873,7 @@ namespace Orleans.CodeGeneration
             }
             catch (Exception ex)
             {
-                ConsoleText.WriteError("ERROR -- Code-gen FAILED -- Exception caught -- {0}", ex);
+                NamespaceGenerator.ReportError("-- Code-gen FAILED -- ", ex);
                 return 3;
             }
         }
@@ -872,7 +900,6 @@ namespace Orleans.CodeGeneration
         {
             AssertWellFormed(arg, true);
             sourceFiles.Add(arg);
-
 
             SetLanguageIfMatchNoConflict(arg, ".cs", Language.CSharp, ref language, ref conflict);
             SetLanguageIfMatchNoConflict(arg, ".vb", Language.VisualBasic,  ref language, ref conflict);

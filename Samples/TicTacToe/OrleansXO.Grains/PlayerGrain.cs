@@ -1,18 +1,25 @@
-﻿//*********************************************************//
-//    Copyright (c) Microsoft. All rights reserved.
-//    
-//    Apache 2.0 License
-//    
-//    You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//    
-//    Unless required by applicable law or agreed to in writing, software 
-//    distributed under the License is distributed on an "AS IS" BASIS, 
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or 
-//    implied. See the License for the specific language governing 
-//    permissions and limitations under the License.
-//
-//*********************************************************
+﻿/*
+Project Orleans Cloud Service SDK ver. 1.0
+ 
+Copyright (c) Microsoft Corporation
+ 
+All rights reserved.
+ 
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+associated documentation files (the ""Software""), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
 
 using Orleans;
 using OrleansXO.GrainInterfaces;
@@ -51,7 +58,7 @@ namespace OrleansXO.Grains
 
         public async Task<PairingSummary[]> GetAvailableGames()
         {
-            var grain = PairingGrainFactory.GetGrain(0);
+            var grain = GrainFactory.GetGrain<IPairingGrain>(0);
             return (await grain.GetGames()).Where(x => !this.ListOfActiveGames.Contains(x.GameId)).ToArray();
         }
 
@@ -61,7 +68,7 @@ namespace OrleansXO.Grains
             this.gamesStarted += 1;
 
             var gameId = Guid.NewGuid();
-            var gameGrain = GameGrainFactory.GetGrain(gameId);  // create new game
+            var gameGrain = GrainFactory.GetGrain<IGameGrain>(gameId);  // create new game
 
             // add ourselves to the game
             var playerId = this.GetPrimaryKey();  // our player id
@@ -70,7 +77,7 @@ namespace OrleansXO.Grains
             var name = this.username + "'s " + AddOrdinalSuffix(this.gamesStarted.ToString()) + " game";
             await gameGrain.SetName(name);
 
-            var pairingGrain = PairingGrainFactory.GetGrain(0);
+            var pairingGrain = GrainFactory.GetGrain<IPairingGrain>(0);
             await pairingGrain.AddGame(gameId, name);
 
             return gameId;
@@ -80,12 +87,12 @@ namespace OrleansXO.Grains
         // join a game that is awaiting players
         public async Task<GameState> JoinGame(Guid gameId)
         {
-            var gameGrain = GameGrainFactory.GetGrain(gameId);
+            var gameGrain = GrainFactory.GetGrain<IGameGrain>(gameId);
 
             var state = await gameGrain.AddPlayerToGame(this.GetPrimaryKey());
             this.ListOfActiveGames.Add(gameId);
 
-            var pairingGrain = PairingGrainFactory.GetGrain(0);
+            var pairingGrain = GrainFactory.GetGrain<IPairingGrain>(0);
             await pairingGrain.RemoveGame(gameId);
 
             return state;
@@ -115,7 +122,7 @@ namespace OrleansXO.Grains
             var tasks = new List<Task<GameSummary>>();
             foreach (var gameId in this.ListOfActiveGames)
             {
-                var game = GameGrainFactory.GetGrain(gameId);
+                var game = GrainFactory.GetGrain<IGameGrain>(gameId);
                 tasks.Add(game.GetSummary(this.GetPrimaryKey()));
             }
             await Task.WhenAll(tasks);

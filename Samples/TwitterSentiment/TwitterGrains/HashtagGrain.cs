@@ -1,18 +1,25 @@
-﻿//*********************************************************//
-//    Copyright (c) Microsoft. All rights reserved.
-//    
-//    Apache 2.0 License
-//    
-//    You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//    
-//    Unless required by applicable law or agreed to in writing, software 
-//    distributed under the License is distributed on an "AS IS" BASIS, 
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or 
-//    implied. See the License for the specific language governing 
-//    permissions and limitations under the License.
-//
-//*********************************************************
+﻿/*
+Project Orleans Cloud Service SDK ver. 1.0
+ 
+Copyright (c) Microsoft Corporation
+ 
+All rights reserved.
+ 
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+associated documentation files (the ""Software""), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
 
 using System;
 using System.Threading.Tasks;
@@ -26,21 +33,21 @@ namespace TwitterGrains
     /// <summary>
     /// interface defining the persistent state for hashtag grain
     /// </summary>
-    public interface ITotalsState : IGrainState
+    public class TotalsState : GrainState
     {
-        int Positive { get; set; }
-        int Negative { get; set; }
-        int Total { get; set; }
-        DateTime LastUpdated { get; set; }
-        string Hashtag { get; set; }
-        bool BeenCounted { get; set; }
-        string LastTweet { get; set; }
+        public int Positive { get; set; }
+        public int Negative { get; set; }
+        public int Total { get; set; }
+        public DateTime LastUpdated { get; set; }
+        public string Hashtag { get; set; }
+        public bool BeenCounted { get; set; }
+        public string LastTweet { get; set; }
     }
 
 
     // <Provider Type="Orleans.Storage.AzureTableStorage" Name="store1" DataConnectionString="xxx" />
     [StorageProvider(ProviderName = "store1")]
-    public class HashtagGrain : Orleans.Grain<ITotalsState>, IHashtagGrain
+    public class HashtagGrain : Grain<TotalsState>, IHashtagGrain
     {
         private string hashtag;  // keep note of the hashtag we are tracking
 
@@ -54,8 +61,8 @@ namespace TwitterGrains
             {
                 // record that the grain has now been counted, and store the state
                 this.State.BeenCounted = true;
-                var counter = CounterFactory.GetGrain(0);
-                await Task.WhenAll(counter.IncrementCounter(), this.State.WriteStateAsync());
+                var counter = GrainFactory.GetGrain<ICounter>(0);
+                await Task.WhenAll(counter.IncrementCounter(), this.WriteStateAsync());
             }
             await base.OnActivateAsync();
         }
@@ -80,7 +87,7 @@ namespace TwitterGrains
             if (score != 0)
             {
                 // only save the state if the score is non-zero (otherwise it's not interesting)
-                await this.State.WriteStateAsync();
+                await this.WriteStateAsync();
             }
         }
 

@@ -21,7 +21,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 
 namespace Orleans.Runtime
 {
@@ -67,6 +67,19 @@ namespace Orleans.Runtime
             if (!grain.IsSystemTarget)
                 throw new ArgumentException("System activation IDs can only be created for system grains");
             return FindOrCreate(grain.Key);
+        }
+
+        public static ActivationId GetClientGWActivation(GrainId grain, SiloAddress location)
+        {
+            if (!grain.IsClient)
+                throw new ArgumentException("ClientGW activation IDs can only be created for client grains");
+
+            // Construct a unique and deterministic ActivationId based on GrainId and SiloAddress.
+            string stringToHash = grain.ToParsableString() + location.Endpoint + location.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Guid hash = Utils.CalculateGuidHash(stringToHash);
+            UniqueKey key = UniqueKey.NewKey(hash);
+
+            return FindOrCreate(key);
         }
 
         internal static ActivationId GetActivationId(UniqueKey key)

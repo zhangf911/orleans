@@ -21,15 +21,16 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-﻿using System;
+using System;
 using System.Diagnostics.Contracts;
 using System.Globalization;
-﻿using Orleans.Serialization;
+using Orleans.Core;
+using Orleans.Serialization;
 
 namespace Orleans.Runtime
 {
     [Serializable]
-    internal class GrainId : UniqueIdentifier, IEquatable<GrainId>
+    internal class GrainId : UniqueIdentifier, IEquatable<GrainId>, IGrainIdentity
     {
         private static readonly object lockable = new object();
         private const int INTERN_CACHE_INITIAL_SIZE = InternerConstants.SIZE_LARGE;
@@ -43,10 +44,7 @@ namespace Orleans.Runtime
 
         public bool IsGrain { get { return Category == UniqueKey.Category.Grain || Category == UniqueKey.Category.KeyExtGrain; } }
 
-        public bool IsClient { get { return Category == UniqueKey.Category.ClientGrain || Category == UniqueKey.Category.ClientAddressableObject; } }
-
-        internal bool IsClientGrain { get { return Category == UniqueKey.Category.ClientGrain; } }
-        internal bool IsClientAddressableObject { get { return Category == UniqueKey.Category.ClientAddressableObject; } }
+        public bool IsClient { get { return Category == UniqueKey.Category.Client; } }
 
         private GrainId(UniqueKey key)
             : base(key)
@@ -58,14 +56,9 @@ namespace Orleans.Runtime
             return FindOrCreateGrainId(UniqueKey.NewKey(Guid.NewGuid(), UniqueKey.Category.Grain));
         }
 
-        public static GrainId NewClientGrainId()
+        public static GrainId NewClientId()
         {
-            return FindOrCreateGrainId(UniqueKey.NewKey(Guid.NewGuid(), UniqueKey.Category.ClientGrain));
-        }
-
-        public static GrainId NewClientAddressableGrainId()
-        {
-            return FindOrCreateGrainId(UniqueKey.NewKey(Guid.NewGuid(), UniqueKey.Category.ClientAddressableObject));
+            return FindOrCreateGrainId(UniqueKey.NewKey(Guid.NewGuid(), UniqueKey.Category.Client));
         }
 
         internal static GrainId GetGrainId(UniqueKey key)
@@ -115,7 +108,27 @@ namespace Orleans.Runtime
                 typeCode, primaryKey));
         }
 
-        internal long GetPrimaryKeyLong(out string keyExt)
+        public Guid PrimaryKey
+        {
+            get { return GetPrimaryKey(); }
+        }
+
+        public long PrimaryKeyLong
+        {
+            get { return GetPrimaryKeyLong(); }
+        }
+
+        public string PrimaryKeyString
+        {
+            get { return GetPrimaryKeyString(); }
+        }
+
+        public string IdentityString
+        {
+            get { return ToDetailedString(); }
+        }
+
+        public long GetPrimaryKeyLong(out string keyExt)
         {
             return Key.PrimaryKeyToLong(out keyExt);
         }
@@ -126,7 +139,7 @@ namespace Orleans.Runtime
             return Key.PrimaryKeyToLong();
         }
 
-        internal Guid GetPrimaryKey(out string keyExt)
+        public Guid GetPrimaryKey(out string keyExt)
         {
             return Key.PrimaryKeyToGuid(out keyExt);
         }
@@ -240,11 +253,8 @@ namespace Orleans.Runtime
                     if (!detailed) typeString = typeString.Tail(8);
                     fullString = String.Format("*grn/{0}/{1}", typeString, idString);
                     break;
-                case UniqueKey.Category.ClientGrain:
+                case UniqueKey.Category.Client:
                     fullString = "*cli/" + idString;
-                    break;
-                case UniqueKey.Category.ClientAddressableObject:
-                    fullString =  "*cliObj/" + idString;
                     break;
                 case UniqueKey.Category.SystemTarget:
                     string explicitName = Constants.SystemTargetName(this);
